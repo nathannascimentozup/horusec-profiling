@@ -1,0 +1,47 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe NotificationsHelper do
+  describe 'notification_icon' do
+    it { expect(notification_icon(:disabled)).to match('data-testid="notifications-off-icon"') }
+    it { expect(notification_icon(:owner_disabled)).to match('data-testid="notifications-off-icon"') }
+    it { expect(notification_icon(:participating)).to match('data-testid="notifications-icon"') }
+    it { expect(notification_icon(:mention)).to match('data-testid="at-icon"') }
+    it { expect(notification_icon(:global)).to match('data-testid="earth-icon') }
+    it { expect(notification_icon(:watch)).to match('data-testid="eye-icon"') }
+    it { expect(notification_icon(:custom)).to equal('') }
+  end
+
+  describe 'notification_title' do
+    it { expect(notification_title(:watch)).to match('Watch') }
+    it { expect(notification_title(:mention)).to match('On mention') }
+    it { expect(notification_title(:global)).to match('Global') }
+  end
+
+  describe '#notification_event_name' do
+    context 'for success_pipeline' do
+      it 'returns the custom name' do
+        expect(FastGettext).to receive(:cached_find).with('NotificationEvent|Successful pipeline')
+        expect(notification_event_name(:success_pipeline)).to eq('Successful pipeline')
+      end
+    end
+
+    context 'for everything else' do
+      it 'returns a humanized name' do
+        expect(FastGettext).to receive(:cached_find).with('NotificationEvent|Failed pipeline')
+        expect(notification_event_name(:failed_pipeline)).to eq('Failed pipeline')
+      end
+    end
+  end
+
+  describe '#notification_icon_level' do
+    let(:user) { create(:user) }
+    let(:global_setting) { user.global_notification_setting }
+    let(:notification_setting) { create(:notification_setting, level: :watch) }
+
+    it { expect(notification_icon_level(notification_setting, true)).to eq 'owner_disabled' }
+    it { expect(notification_icon_level(notification_setting)).to eq 'watch' }
+    it { expect(notification_icon_level(global_setting)).to eq 'participating' }
+  end
+end

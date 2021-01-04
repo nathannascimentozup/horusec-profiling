@@ -1,0 +1,176 @@
+/*
+ * Copyright 2019-2020 Mamoe Technologies and contributors.
+ *
+ *  此源代码的使用受 GNU AFFERO GENERAL PUBLIC LICENSE version 3 许可证的约束, 可以在以下链接找到该许可证.
+ *  Use of this source code is governed by the GNU AGPLv3 license that can be found through the following link.
+ *
+ *  https://github.com/mamoe/mirai/blob/master/LICENSE
+ */
+
+// 部分源码来自 kotlinx.coroutines
+// Source code from kotlinx.coroutines
+
+tasks.register("ensureBintrayAvailable") {
+    doLast {
+        if (!upload.Bintray.isBintrayAvailable(project)) {
+            throw new IllegalStateException("bintray isn't available. ")
+        }
+    }
+}
+
+def vcs = "https://github.com/mamoe/mirai"
+
+def pomConfig = {
+    licenses {
+        license {
+            name "AGPLv3 with Mamoe Exceptions"
+            url "https://github.com/mamoe/mirai/blob/master/LICENSE"
+            distribution "repo"
+        }
+    }
+    developers {
+        developer {
+            id "mamoe"
+            name "Mamoe Technologies"
+            email "support@mamoe.net"
+        }
+    }
+    scm {
+        url vcs
+    }
+}
+
+project.ext.configureMavenCentralMetadata = { pom ->
+    def root = asNode()
+    root.appendNode('name', project.name)
+    root.appendNode('description', project.description)
+    root.appendNode('url', vcs)
+    root.children().last() + pomConfig
+}
+
+try {
+
+// empty xxx-javadoc.jar
+    task javadocJar(type: Jar) {
+        archiveClassifier = 'javadoc'
+    }
+} catch (Exception ignored) {
+
+}
+
+try {
+    task stubJavadoc(type: Jar) {
+        archiveClassifier = 'javadoc'
+    }
+} catch (Exception ignored) {
+
+}
+
+/**
+ * Publish the platform JAR and POM so that consumers who depend on this module and can't read Gradle module
+ * metadata can still get the platform artifact and transitive dependencies from the POM
+ * (see details in https://youtrack.jetbrains.com/issue/KT-39184#focus=streamItem-27-4115233.0-0)
+ */
+project.ext.publishPlatformArtifactsInRootModule = { platformPublication ->
+    afterEvaluate {
+        def platformPomBuilder = null
+
+        platformPublication.pom.withXml { platformPomBuilder = asString() }
+
+        publishing.publications.kotlinMultiplatform {
+            platformPublication.artifacts.forEach {
+                artifact(it)
+            }
+
+            pom.withXml {
+                def pomStringBuilder = asString()
+                pomStringBuilder.setLength(0)
+                // The platform POM needs its artifact ID replaced with the artifact ID of the root module:
+                def platformPomString = platformPomBuilder.toString()
+                platformPomString.eachLine { line ->
+                    if (!line.contains("<!--")) { // Remove the Gradle module metadata marker as it will be added anew
+                        pomStringBuilder.append(line.replace(platformPublication.artifactId, artifactId))
+                        pomStringBuilder.append("\n")
+                    }
+                }
+            }
+        }
+
+        tasks.matching { it.name == "generatePomFileForKotlinMultiplatformPublication" }.configureEach {
+            dependsOn(tasks["generatePomFileFor${platformPublication.name.capitalize()}Publication"])
+        }
+    }
+}
+
+def isKotlin137x = false
+
+afterEvaluate {
+
+    publishing {
+        def variantName = "${project.name}"
+
+        // Rename artifacts for backward compatibility
+        publications.all {
+            def type = it.name
+            logger.info("Configuring $type")
+            switch (type) {
+                case 'kotlinMultiplatform':
+                    if (isKotlin137x) {
+                        it.artifactId = "$variantName-native"
+                        it.artifact sourcesJar
+                    } else {
+                        // With Kotlin 1.4.0, the root module ID has no suffix, but for compatibility with
+                        // the consumers who can't read Gradle module metadata, we publish the JVM artifacts in it
+                        it.artifactId = variantName
+                        // publishPlatformArtifactsInRootModule(publications["jvm"])
+                    }
+                    break
+
+                case 'metadata':
+                    it.artifactId = isKotlin137x ? "$variantName-common" : "$variantName-metadata"
+                    break
+
+                case 'jvm':
+                    it.artifactId = isKotlin137x ? "$variantName" : "$variantName-jvm"
+                    /*
+                    def files = tasks.getByName("shadowJarMd5").outputs.files + tasks.getByName("shadowJvmJar").outputs.files
+                    for (f in files) {
+                        artifact f
+                    }
+                    */
+                    break
+
+                case 'js':
+                    it.artifactId = "$variantName-$type"
+                    break
+            }
+            logger.info("Artifact id = ${it.artifactId}")
+
+            pom.withXml(configureMavenCentralMetadata)
+
+            // The 'root' module publishes the JVM module's Javadoc JAR as per publishPlatformArtifactsInRootModule, and
+
+            if (name != "kotlinMultiplatform")
+                artifact stubJavadoc
+        }
+
+        if (isKotlin137x) {
+            disableMetadataPublication()
+        }
+    }
+}
+
+
+if (upload.Bintray.isBintrayAvailable(project)) {
+    apply from: rootProject.file("gradle/bintray.gradle")
+}
+
+/*
+task bintrayUpload(dependsOn: publish)
+
+// This is required for K/N publishing
+bintrayUpload.dependsOn publishToMavenLocal
+
+
+bintrayUpload.dependsOn generatePomFileForKotlinMultiplatformPublication
+ */

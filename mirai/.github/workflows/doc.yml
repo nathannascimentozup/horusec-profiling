@@ -1,0 +1,39 @@
+# This is a basic workflow to help you get started with Actions
+
+name: mirai-doc Publish
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  release:
+    types:
+      - created
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Gradle build
+        run: ./gradlew clean build # if test's failed, don't publish
+      - name: Gradle :mirai-core:dokkaGenerator
+        run: ./gradlew :mirai-core:dokka
+      - name: GitHub Pages Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          personal_token: ${{ secrets.MAMOE_TOKEN }}
+          publish_dir: ./mirai-core/build/dokka
+          external_repository: project-mirai/mirai-doc
+          publish_branch: master
+          user_name: 'mamoebot'
+          user_email: 'mamoebot@users.noreply.github.com'
+          keep_files: true
+

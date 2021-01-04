@@ -1,0 +1,16 @@
+%p.details
+  #{link_to @merge_request.author_name, user_url(@merge_request.author)} created a merge request:
+
+%p
+  .branch
+    = merge_path_description(@merge_request, 'to')
+  .author
+    Author: #{@merge_request.author_name}
+  .assignee
+    = assignees_label(@merge_request)
+  .approvers
+    = render_if_exists 'notify/merge_request_approvers', presenter: @mr_presenter
+
+- if @merge_request.description
+  %div
+    = markdown(@merge_request.description, pipeline: :email, author: @merge_request.author)

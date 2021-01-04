@@ -1,0 +1,10 @@
+%p.details
+  #{link_to @issue.author_name, user_url(@issue.author)} created an issue #{issue_reference_link(@issue)}:
+
+- if @issue.assignees.any?
+  %p
+    = assignees_label(@issue)
+
+- if @issue.description
+  %div
+  = markdown(@issue.description, pipeline: :email, author: @issue.author)

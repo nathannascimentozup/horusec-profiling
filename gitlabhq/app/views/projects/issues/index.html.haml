@@ -1,0 +1,30 @@
+- @can_bulk_update = can?(current_user, :admin_issue, @project)
+
+- page_title _("Issues")
+- new_issue_email = @project.new_issuable_address(current_user, 'issue')
+- add_page_specific_style 'page_bundles/issues_list'
+
+= content_for :meta_tags do
+  = auto_discovery_link_tag(:atom, safe_params.merge(rss_url_options).to_h, title: "#{@project.name} issues")
+
+.js-projects-issues-root{ data: { can_edit: can?(current_user, :admin_project, @project).to_s,
+  is_jira_configured: @project.jira_service.present?.to_s,
+  issues_path: project_issues_path(@project),
+  project_path: @project.full_path } }
+
+- if project_issues(@project).exists?
+  .top-area
+    = render 'shared/issuable/nav', type: :issues
+    = render "projects/issues/nav_btns"
+  = render 'shared/issuable/search_bar', type: :issues
+
+  - if @can_bulk_update
+    = render 'shared/issuable/bulk_update_sidebar', type: :issues
+
+  .issues-holder
+    = render 'issues'
+    - if new_issue_email
+      = render 'projects/issuable_by_email', email: new_issue_email, issuable_type: 'issue'
+- else
+  - new_project_issue_button_path = @project.archived? ? false : new_project_issue_path(@project)
+  = render 'shared/empty_states/issues', new_project_issue_button_path: new_project_issue_button_path, show_import_button: true
